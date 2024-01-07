@@ -13,4 +13,7 @@ statsmodels
 pendulum
 icecream
 arch
+scikit-learn
+tensorflow
+matplotlib
 
