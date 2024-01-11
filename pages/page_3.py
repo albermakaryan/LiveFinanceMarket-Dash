@@ -14,6 +14,8 @@ from dash import html, Dash, dcc, callback, Input, Output, dash_table
 import dash_bootstrap_components as dbc
 import dash_mantine_components as dmc
 
+from portfolio_manager.lstm_optimization import create_lstm_model
+
 valid_intervals = ['1m', '2m', '5m', '15m', '30m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo']
 
 valid_date_freq = {
@@ -123,6 +125,7 @@ layout = html.Div(
     Input(component_id='n-forecast', component_property='value')
 )
 def create_model(ticker, interval, n_forecast):
+    
     period = [d for d in valid_pairs.keys() if interval in valid_pairs[d]][0]
 
     if ticker in forex:

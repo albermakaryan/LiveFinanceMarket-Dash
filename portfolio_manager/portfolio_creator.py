@@ -26,7 +26,7 @@ class PortfolioManager:
 
         self.watch_list = watch_list
 
-        self.portfolio_list = []
+        self.portfolio_list = {}
         pass
 
 
@@ -48,7 +48,7 @@ class PortfolioManager:
                                    portfolio_performance_path=PORTFOLIO_PERFORMACE_PATH,
                                    model=model)
         
-        self.portfolio_list.append(portfolio)
+        self.portfolio_list['linear-portfolio'] = portfolio
         
 
         return portfolio
@@ -68,7 +68,7 @@ class PortfolioManager:
                                 portfolio_performance_path=PORTFOLIO_PERFORMACE_PATH,
                                 model=model,lstm_dir=lstm_dir)
         
-        self.portfolio_list.append(portfolio)
+        self.portfolio_list['lstm-portfolio'] = portfolio
         
 
         return portfolio
@@ -77,7 +77,8 @@ class PortfolioManager:
         
         if portfolio is None:
             for portfolio in self.portfolio_list:
-                portfolio.get_all_properties()
+                
+                self.portfolio_list[portfolio].get_all_properties()
         else:
 
             portfolio.get_all_properties()
@@ -87,10 +88,11 @@ class PortfolioManager:
         
         if portfolio is None:
             for portfolio in self.portfolio_list:
-                portfolio.create_portfolio(number_of_stocks=n_stocks,update_portfolio=True)
+                model = portfolio.split('-')[0]
+                self.portfolio_list[portfolio].create_portfolio(model=model,number_of_stocks=n_stocks,update_portfolio=True)
         else:
-            
-            portfolio.create_portfolio(number_of_stocks=n_stocks,update_portfolio=True)
+            model = portfolio.split('-')[0]
+            self.portfolio_list[portfolio].create_portfolio(model=model,number_of_stocks=n_stocks,update_portfolio=True)
 
 
 

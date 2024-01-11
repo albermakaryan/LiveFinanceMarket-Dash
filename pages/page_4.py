@@ -40,15 +40,17 @@ visualizer = PortfolioVisualizer()
 
 
 
-# linear_portfolio = manager.linear_portfolio()
+linear_portfolio = manager.linear_portfolio()
 lstm_portfolio = manager.lstm_portfolio()
-manager.update_portfolios(lstm_portfolio)
 
-quit()
-# manager.update_portfolio(linear_portfolio)
-# manager.get_all_properties(linear_portfolio)
+# lstm_portfolio.create_portfolio(model='lstm',update_portfolio=True,number_of_stocks=5)
 
 # quit()
+
+# manager.update_portfolios()
+
+manager.get_all_properties()
+
 
 
 
@@ -68,7 +70,7 @@ dash.register_page(__name__,name="Portfolio")
 model_tabs = dcc.Tabs(
     children=[
         dcc.Tab(id='linear-portfolio',label='ARIMA & GARCH',value='linear-portfolio'),
-        dcc.Tab(id='dense-network-portfolio',label='Dense NN',value='ense-network'),
+        # dcc.Tab(id='dense-network-portfolio',label='Dense NN',value='ense-network'),
         dcc.Tab(id='lstm-portfolio',label='LSTM',value='lstm')],
     
     id = 'model-types',
@@ -81,10 +83,23 @@ layout = html.Div(
     [
 
     model_tabs,
+    
+    html.Div(
+        [
+            html.H4("Update"),
+            html.Button(
+                id = 'update-button',
+                children='Update',
+                n_clicks=0,
+            )
+        ],
+        id = 'update-button-container'
+    ),
 
 
     html.Div(
         [
+
 
             html.Div([
 
@@ -114,10 +129,11 @@ layout = html.Div(
 @callback(
     [Output(component_id='pie-chart-containier',component_property='children'),
     Output(component_id='info-table',component_property='children')],
-    Input(component_id='model-types',component_property='value'))
+    [Input(component_id='model-types',component_property='value'),
+    Input(component_id='update-button',component_property='n_clicks')])
 
 
-def plot_proportions_and_show_records(portfolio_creation_type):
+def plot_proportions_and_show_records(portfolio_creation_type,n_clicks):
 
 
     now = dt.datetime.now()
@@ -127,19 +143,18 @@ def plot_proportions_and_show_records(portfolio_creation_type):
 
     # print(model_type)
 
-    if model_type == 'linear-portfolio':
-        # print(model_type)
-        figure = visualizer.visualize_portfolio(linear_portfolio)
-        records = linear_portfolio.get_full_records_as_df(True)
+    portoflio = linear_portfolio if model_type == 'linear-portfolio' else lstm_portfolio
+    
+    if n_clicks:
+        manager.update_portfolios(model_type)
+        portoflio = manager.portfolio_list[model_type]
+        
+    # print(model_type)
+    figure = visualizer.visualize_portfolio(portoflio)
+    records = linear_portfolio.get_full_records_as_df(True)
 
-        return html.Div([dcc.Graph(figure=figure)]),\
-               html.Div([dash_table.DataTable(data=records.to_dict('records'),columns=[{"name":i,"id":i} for i in records.columns])])
-    else:
-        # print(model_type)
-        return html.Div([]),html.Div([])
+    return html.Div([dcc.Graph(figure=figure)]),\
+           html.Div([dash_table.DataTable(data=records.to_dict('records'),columns=[{"name":i,"id":i} for i in records.columns])])
 
 
-
-# def ff():
-#     pass
 
