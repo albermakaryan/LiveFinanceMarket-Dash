@@ -10,7 +10,6 @@ from icecream import ic
 import json
 
 from portfolio_manager.portfolio import Portfolio
-from portfolio_manager.linear_ts_model_optimization import optimize_arima,optimize_garch
 
 # ic("Done")
 
@@ -38,33 +37,61 @@ class PortfolioManager:
                         LINEAR_PORTOFLIO_PATH = 'data/portfolio_data/linear_portfolio/linear_portfolio.json',
                         LINEAR_RETURNS_PATH = 'data/portfolio_data/linear_portfolio/linear_returns.csv',
                         LINEAR_RECORDS_PATH = 'data/portfolio_data/linear_portfolio/linear_records.csv',
-                        PORTFOLIO_PERFORMACE_PATH = 'data/portfolio_data/linear_portfolio/linear_portfolio_perfomance.json'):
+                        PORTFOLIO_PERFORMACE_PATH = 'data/portfolio_data/linear_portfolio/linear_portfolio_perfomance.json',
+                        model='linear'):
         
         portfolio = Portfolio(watch_list=self.watch_list,
                                    initial_amount=100_000,
                                    best_model_params_path=BEST_LINEAR_MODEL_PARAM_PATH,
                                    portfolio_path=LINEAR_PORTOFLIO_PATH,
                                    records_path=LINEAR_RECORDS_PATH,params_from_path=True,
-                                   portfolio_performance_path=PORTFOLIO_PERFORMACE_PATH)
+                                   portfolio_performance_path=PORTFOLIO_PERFORMACE_PATH,
+                                   model=model)
         
         self.portfolio_list.append(portfolio)
         
 
         return portfolio
     
-    def get_all_properties(self,portfolio):
+    def lstm_portfolio(self,
+                    n_scotks = 5,
+                    LSTM_PORTOFLIO_PATH = 'data/portfolio_data/lstm_portfolio/lstm_portfolio.json',
+                    LSTM_RETURNS_PATH = 'data/portfolio_data/lstm_portfolio/lstm_returns.csv',
+                    LSTM_RECORDS_PATH = 'data/portfolio_data/lstm_portfolio/lstm_records.csv',
+                    PORTFOLIO_PERFORMACE_PATH = 'data/portfolio_data/lstm_portfolio/lstm_portfolio_perfomance.json',
+                    model='lstm',lstm_dir="data/lstm_data"):
+    
+        portfolio = Portfolio(watch_list=self.watch_list,
+                                initial_amount=100_000,
+                                portfolio_path=LSTM_PORTOFLIO_PATH,
+                                records_path=LSTM_RECORDS_PATH,params_from_path=False,
+                                portfolio_performance_path=PORTFOLIO_PERFORMACE_PATH,
+                                model=model,lstm_dir=lstm_dir)
+        
+        self.portfolio_list.append(portfolio)
+        
 
-        portfolio.get_all_properties()
+        return portfolio
+    
+    def get_all_properties(self,portfolio=None):
+        
+        if portfolio is None:
+            for portfolio in self.portfolio_list:
+                portfolio.get_all_properties()
+        else:
+
+            portfolio.get_all_properties()
 
 
-    def update_portfolio(self,portfolio,n_stocks=5):
+    def update_portfolios(self,portfolio=None,n_stocks=5):
+        
+        if portfolio is None:
+            for portfolio in self.portfolio_list:
+                portfolio.create_portfolio(number_of_stocks=n_stocks,update_portfolio=True)
+        else:
+            
+            portfolio.create_portfolio(number_of_stocks=n_stocks,update_portfolio=True)
 
-        portfolio.create_portfolio(number_of_stocks=n_stocks,update_portfolio=True)
-
-    def update_all_portfolios(self):
-
-        for portfolio in self.portfolio_list:
-            self.update_portfolio(portfolio)
 
 
 

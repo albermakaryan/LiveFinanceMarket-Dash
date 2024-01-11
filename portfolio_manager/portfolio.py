@@ -3,6 +3,7 @@ import numpy as np
 import yahooquery as yq
 import yfinance as yf
 import pendulum as pen
+import joblib
 
 import time
 import datetime as dt
@@ -10,11 +11,13 @@ import pendulum as penf
 
 from statsmodels.tsa.arima.model import ARIMA
 from arch import arch_model
+import tensorflow as tf
 
 from icecream import ic
 import json
 
 from portfolio_manager.linear_ts_model_optimization import optimize_arima,optimize_garch
+from portfolio_manager.lstm_optimization import create_lstm_model
 
 import os
 
@@ -23,8 +26,10 @@ import os
 class Portfolio:
 
 
-    def __init__(self,watch_list: dict,best_model_params_path,portfolio_path,records_path,
-                 portfolio_performance_path,initial_amount=100_000,params_from_path=True):
+    def __init__(self,watch_list: dict,portfolio_path,records_path,
+                 portfolio_performance_path,initial_amount=100_000,
+                 best_model_params_path=None,
+                 params_from_path=True,model='linear',lstm_dir=None):
 
         
         self.watch_list = watch_list
@@ -43,7 +48,12 @@ class Portfolio:
         self.portfolio_performance_path = portfolio_performance_path        
         self.best_model_params_path = best_model_params_path
 
+        self.model = model
+        self.lstm_dir = lstm_dir
 
+
+        self.watch_list_df = pd.DataFrame(self.watch_list.items(),columns=['symbol','stock_name'])
+        self.watch_list_df.set_index("symbol",inplace=True)
 
         if params_from_path:
 
@@ -154,9 +164,63 @@ class Portfolio:
         self.best_model_params = best_model_params
 
 
-    def get_best_lstm(self):
-        pass
+    def get_best_lstm(self,direcotory_to_save="data/lstm_data",start_date="2015-01-01",train_size=0.8,
+                      end_date=None,input_shape=30,batch_size=16,epoch=10,learning_rate=0.03,
+                      verbose=1):
+        
+        
+        if os.path.exists(direcotory_to_save):
+            ask = input("\nThe directory exists. Do you want to optimize models for each stock again? (yes/any other input): ")
 
+            if ask.lower() != 'yes':
+                return 0
+        else:
+            os.mkdir(direcotory_to_save)
+        
+        
+        return_model_folder,return_scaler_folder = "return_models","return_scalers"
+        volatility_model_folder,volatility_scaler_folder = "volatility_models","volatility_scalers"
+        
+        # create folders if not exists
+        
+        for folder in [return_model_folder,return_scaler_folder,volatility_model_folder,volatility_scaler_folder]:
+            
+            path = os.path.join(direcotory_to_save,folder)
+            if not os.path.exists(path):
+                os.mkdir(path)
+        
+        for stock in self.watch_list:
+            
+            
+            return_model_path = os.path.join(direcotory_to_save,return_model_folder,stock+".h5")
+            return_scaler_path = os.path.join(direcotory_to_save,return_scaler_folder,stock+".pkl")
+            volatility_model_path = os.path.join(direcotory_to_save,volatility_model_folder,stock+".h5")
+            volatility_scaler_path = os.path.join(direcotory_to_save,volatility_scaler_folder,stock+".pkl")
+            
+            
+            print("\n",self.watch_list[stock],"\nReturn model:")
+            
+            
+            return_model,_,return_scaler = create_lstm_model(stock=stock,input_type='return',
+                                                             epoch=epoch,learning_rate=learning_rate,batch_size=batch_size,
+                                                             input_shape=input_shape,train_size=train_size,
+                                                             start_date=start_date,end_date=end_date,verbose=verbose)
+            
+            print("\n",self.watch_list[stock],"\nVolatility model:")
+
+            volatility_model,_,volatility_scaler = create_lstm_model(stock=stock,input_type='volatility',
+                                                             epoch=epoch,learning_rate=learning_rate,batch_size=batch_size,
+                                                             input_shape=input_shape,train_size=train_size,
+                                                             start_date=start_date,end_date=end_date,verbose=verbose)
+            
+            print("\n\n")
+            
+            return_model.save(return_model_path)
+            volatility_model.save(volatility_model_path)
+            joblib.dump(return_scaler,filename=return_scaler_path)
+            joblib.dump(volatility_scaler,filename=volatility_scaler_path)
+            
+            
 
     def get_best_dense(self):
         pass
@@ -393,16 +457,19 @@ class Portfolio:
         self.proportions['cash'] = self.current_cash/self.total_amount,self.current_cash
              
 
-    def get_return_and_volatility(self,path_to_save=None,model='linear'):
+    def get_return_and_volatility(self,path_to_save=None,model=None,lsmt_dir=None,retrain_lstm=True):
 
         """
         model: 'linear','lstm','dense-nn'
         """
+        
+        model = self.model if model is None else model
+        lsmt_dir = self.lstm_dir if lsmt_dir is None else lsmt_dir
 
         date = pen.today().strftime("%Y-%m-%d")
 
 
-        self.next_day_returns = pd.DataFrame(columns=['return','volatility','last_price','date'],index=self.best_model_params.index.values)
+        self.next_day_returns = pd.DataFrame(columns=['return','volatility','last_price','date'],index=self.watch_list_df.index.values)
 
         for stock in self.watch_list:
             
@@ -442,7 +509,67 @@ class Portfolio:
                 self.next_day_returns.loc[stock,'date'] = date
 
             elif model == 'lstm':
-                pass
+                
+                if not os.path.exists(lsmt_dir):
+                    ask = input("\nThe director does not exist. Do you want to optimize models for each stock? (yes/any other input): ")
+                    if ask.lower() != 'yes':
+                        return 0
+                    else:
+                        self.get_best_lstm(direcotory_to_save=lsmt_dir)
+                        
+                elif os.path.exists(lsmt_dir) and retrain_lstm:
+                    ask = input("\nThe directory exists. Do you want to optimize models for each stock again? (yes/any other input): ")
+                    if ask.lower() != 'yes':
+                        return 0
+                    else:
+                        self.get_best_lstm(direcotory_to_save=lsmt_dir)
+                              
+                
+                for input_type in ['return','volatility']:
+                    
+                    model_path = os.path.join(lsmt_dir,input_type+"_models",stock+".h5")
+                    scaler_path = os.path.join(lsmt_dir,input_type+"_scalers",stock+".pkl")
+                    
+                    model = tf.keras.models.load_model(model_path)
+                    
+                    with open(scaler_path,'r') as file:
+                        scaler = joblib.load(scaler_path)
+                        
+                        
+                    # how many days of data is needed for prediction
+                    n_input = model.input.shape[1]
+                    
+                    # download data from yahoo finance
+                    today = dt.datetime.today()
+                    n_days_before = today - dt.timedelta(days = 4*n_input)
+                    data = yq.Ticker(stock).history(start=n_days_before,end=today)
+                    data = data.head(n_input + 1)
+                    last_price = data.tail(1)['adjclose'].values[0]
+                    
+                    if input_type == 'return':
+
+                        data = data['adjclose'].pct_change(1).dropna().values.reshape(-1,1)
+                        
+                    elif input_type == 'volatility':
+                        
+                        data = (data['adjclose'].pct_change(1).dropna().rolling(window=252).std() * np.sqrt(252)).dropna().values.reshape(-1,1)
+
+                    data = scaler.transform(data)
+                    
+                    
+                    prediction = model.predict(data).reshape(-1,1)
+                    
+                    print(prediction)
+                    print(prediction.shape)
+                    quit()
+                    prediction = scaler.inverse_transform(prediction)
+                    prediction = prediction[0,0]
+                    
+                    self.next_day_returns.loc[stock,input_type] = prediction
+                    
+                self.next_day_returns.loc[stock,'last_price'] = last_price
+                self.next_day_returns.loc[stock,'date'] = date
+        
 
             elif model == 'dense-nn':
                 pass
@@ -453,9 +580,10 @@ class Portfolio:
                 # self.next_day_returns.to_csv(path_to_save)
 
 
-    def create_portfolio(self,number_of_stocks=5,update_portfolio=True):
+    def create_portfolio(self,number_of_stocks=5,update_portfolio=True,model=None,lsmt_dir=None,retrain_lstm=True):
 
         date = pen.today().strftime("%Y-%m-%d")
+        
 
         date_time = pen.now()
         date_time = date_time.strftime("%d-%b-%Y %H:%M:%S")
@@ -468,10 +596,8 @@ class Portfolio:
 
 
         
-
-
         # predicte return and volatility for the next day
-        self.get_return_and_volatility()
+        self.get_return_and_volatility(model=model,lsmt_dir=lsmt_dir,retrain_lstm=retrain_lstm)
 
         # get the bests stocks
         best_stocks = self.next_day_returns.sort_values("return",ascending=False).head(number_of_stocks)

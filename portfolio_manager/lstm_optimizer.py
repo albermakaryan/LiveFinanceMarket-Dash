@@ -21,14 +21,14 @@ warnings.filterwarnings("ignore")
 
 
 
-def lstm_model_opmizer(stock,end=None,train_size = 0.8):
+def lstm_model_opmizer(stock,end=None,train_size = 0.8,epoch=1):
 
     
     end = dt.datetime.today() if end is None else end
     
     
     # download data from yahoo finance
-    data = yq.Ticker(stock).history(start="2015-01-01",end=end)
+    data = yq.Ticker(stock).history(start="2021-01-01",end=end)
 
     data = data['adjclose'].pct_change(1).dropna().values.reshape(-1,1)
     
@@ -51,7 +51,7 @@ def lstm_model_opmizer(stock,end=None,train_size = 0.8):
     batch_size = 16
     LR = 0.03
     num_features = 1
-    epochs = 1
+    epochs = epoch
     
     # data preprocessing
     train_data_generator = TimeseriesGenerator(train_data,train_data,length=n_input,batch_size=batch_size)
@@ -101,7 +101,7 @@ def lstm_model_opmizer(stock,end=None,train_size = 0.8):
 
 
 
-def lstm_for_all_stocks(watch_list,directory,model_folder,scaler_folder):
+def lstm_for_all_stocks(watch_list,directory,model_folder,scaler_folder,epoch=1):
     
     
     [os.makedirs(os.path.join(directory,path)) for path in [model_folder,scaler_folder] if not os.path.exists(os.path.join(directory,path))]
@@ -111,7 +111,7 @@ def lstm_for_all_stocks(watch_list,directory,model_folder,scaler_folder):
     
     for stock in watch_list:
         
-        model,_,scaler = lstm_model_opmizer(stock)
+        model,_,scaler = lstm_model_opmizer(stock,epoch=epoch)
         
         model_path = os.path.join(directory,model_folder,stock+".h5")
         scaler_path = os.path.join(directory,scaler_folder,stock+".pkl")
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     
     # lstm_model_opmizer(stock)
     
-    # lstm_for_all_stocks(watch_list,directory=directory,model_folder=model_folder,scaler_folder=scaler_folder)
+    lstm_for_all_stocks(watch_list,directory=directory,model_folder=model_folder,scaler_folder=scaler_folder)
     
     #
     load_lstm_model(stock,directory,model_folder=model_folder,scaler_folder=scaler_folder)
